@@ -1,0 +1,7 @@
+Test 
+
+pip install -r requirements.txt
+
+python3 dbschema.py
+python3 load_countries_data.py -f countries.xls
+python3 load_excel_data.py -f legacy.xls
