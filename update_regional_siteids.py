@@ -1,8 +1,10 @@
-from models import Country
+
+from models import Source, Country
 from sqlalchemy import create_engine, MetaData, Table, select
 from sqlalchemy.orm import Session
 
 from pytz import country_timezones
+from datetime import datetime
 
 import xlrd 
 import xlwt
@@ -45,26 +47,8 @@ def main():
     #config
     config = read_ini(args.config_file_path);
     database_connection_str = config["DB"]["CONNECTION"] 
-   
-
-    # read excel file
-    filename = args.excel_file_path
-    wbook = xlrd.open_workbook(filename) 
-    sheet = wbook.sheet_by_index(0) 
-    first_row = sheet.row(0)  # 1st row  
-    column_idx_by_name = dict([ (cell.value, idx)  for idx, cell in enumerate(first_row) ] )
-    original_rows_size = sheet.nrows
-    original_rows = list([row for row in sheet.get_rows()]) # get all tows
-    wbook.release_resources()
-    del wbook
-
-    mandatory_fields = ['country_iso', 'token', 'site_id']
-    
-    for field in mandatory_fields:
-        if field not in column_idx_by_name.keys():
-            print( "Mandatory field: " + field + ' not present in excel file')
-            exit()
-
+    matomo_token = config["MATOMO"]["MATOMO_TOKEN"]
+    matomo_url =  config["MATOMO"]["MATOMO_URL"]
 
     # database
     engine = create_engine(database_connection_str)
@@ -72,24 +56,31 @@ def main():
     metadata = MetaData()
 
     with Session(engine) as session:
-        
-        for row_idx in range(1,original_rows_size):
+        # for each source 
+        sources = session.query(Source).all()
+        for source in sources:
+            if source.type == 'N':
+                country = session.query(Country).filter(Country.country_iso == source.country_iso).first()
+                if country:
+                    logger.debug("Updating siteid for regional source: %s" % source.name)
+                    source.site_id = country.site_id
+                    source.national_site_id = country.site_id
+                    session.commit()
+                else:
+                    logger.error("Country not found: %s" % source.country_iso)
 
-            row = original_rows[row_idx]
+            if source.type == 'R':
+                # if repository source then get the siteid from related country
+                country = session.query(Country).filter(Country.country_iso == source.country_iso).first()
+                if country:
+                    logger.debug("Updating national_siteid for repository source: %s" % source.name)
+                    source.national_site_id = country.site_id
+                    session.commit()
+    
+    logger.debug("Done")
 
-            country_iso = get_str(row, column_idx_by_name['country_iso'] )
 
-            if country_iso.strip() != '': 
-
-                token   = get_str(row, column_idx_by_name['token'] )
-                site_id = get_str(row, column_idx_by_name['site_id'] )
-               
-                tokenObj = Country(auth_token=token, country_iso=country_iso, site_id=site_id)     
-                session.merge(tokenObj)
-
-        session.commit()
-        
-        
+    
 
 def parse_args():
 
@@ -115,6 +106,9 @@ def parse_args():
 
     
     return parser.parse_args()
+
+
+
 
 if __name__ == "__main__":
     main()
