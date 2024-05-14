@@ -13,6 +13,13 @@ class CountryView(ModelView):
 class SourceView(ModelView):
     datamodel = SQLAInterface(Source)
 
+    # labels 
+    label_columns = {'source_id':'Source','name':'Name','type':'Type','site_id':'SiteID','country_iso':'Country', 'updated_at':'Updated'}
+
+    list_columns = ['source_id','name','type','site_id','country_iso', 'updated_at']
+    
+    edit_columns = ['source_id','name','url','institution','type','site_id','national_site_id','regional_site_id','auth_token','country_iso','identifier_prefix','identifier_map_regex','identifier_map_replace','identifier_map_filename','identifier_map_type']
+    add_columns = edit_columns
 
 """
     Create your Model based REST API::
